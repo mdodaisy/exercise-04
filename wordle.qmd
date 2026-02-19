@@ -1,0 +1,173 @@
+---
+title: "wordle" 
+format: html
+editor_options: 
+  chunk_output_type: console
+---
+
+# Creating Wordle
+
+##### Load required packages
+
+```{r}
+#| output: false
+library(tidyverse)
+```
+
+### Step 1
+
+###### Create a custom function called load_dictionary() that can be used to read in the data files
+
+```{r}
+load_dictionary <- function(filename) {
+  words <- readLines(filename, warn = FALSE)
+  words <- words[-1] # removes the header
+  return(words)
+}
+```
+
+###### Use the function to create two variables, solution_list and valid_list, that, respectively contain vectors of possible solution words and valid words to guess
+
+```{r}
+valid_list <- load_dictionary("collins-scrabble-words-2019.txt") # Official Scrabble words
+solution_list <- load_dictionary("google-10000-english-usa-no-swears.txt") # Most common words in English language
+# check whether it's correct
+str(valid_list)
+str(solution_list)
+```
+
+### Step 2
+
+###### Winnow solution_list to only include words that are included in valid_list
+
+```{r}
+solution_list <- intersect(solution_list, valid_list) # Only include the common words that are official Scrabble words
+```
+
+There are 8,336 words in the updated vector.
+
+### Step 3
+
+###### Write a custom function called pick_solution() that \[1\] removes all words from solution_list that are not 5 letters in length, \[2\] randomly chooses a single word from those that remain, and \[3\] splits that word into a vector of single-character elements
+
+```{r}
+pick_solution <- function(vector, word_length) {
+  five_letter_words <- vector[nchar(vector) == word_length] # only keeps the words of specified word_length
+  solution_word <- sample(five_letter_words, size = 1) # picks one word at random, size gives the number of words to choose
+  solution_characters <- str_split_1(solution_word, pattern = "") # splits the word into single character elements
+  return(solution_characters)
+}
+solution <- pick_solution(solution_list, word_length = 5)
+```
+
+### Step 4
+
+###### Create a function called play_wordle() that takes three arguments: [1] the answer to the puzzle, [2] a list of valid guesses, and [3] a value for "number of guesses."
+
+###### It should [1] tell the player the rules of the game, [2] display what letters the player has not yet guessed, and [3] prompt the player for a guess, read in their guess, and check that their guess is valid.
+
+Setting up a function to evaluate a player's guess
+```{r}
+evaluate_guess <- function(guess, answer) {
+  feedback <- rep("-", length(solution)) # makes a blank feedback string
+
+  for (letter in 1:length(answer)) { # for each letter in answer
+    
+    # correct letter in correct position
+    if (guess[letter] == answer[letter]) {
+      feedback[letter] <- "*"
+      answer[letter] <- "-" # this removes the correct letter from the answer string
+    }
+    
+    # correct letter in wrong position
+    if (feedback[letter] == "-") {
+    if (guess[letter] %in% answer) {
+      feedback[letter] <- "+"
+    }
+    }
+  }
+  feedback
+}
+```
+
+Setting up a function to play the game
+```{r}
+play_wordle <- function(answer, valid_guesses, num_guesses=6) {
+  
+  # print instructions
+  print(paste0("You have ", num_guesses, " chances to guess a ", length(answer), "-letter word that has been selected at random from a list of possible words. ", "Each guess must be a valid ", length(answer), "-letter word."), quote = FALSE)
+  print(paste0("*: letter is in the word and in the correct spot."), quote = FALSE) 
+  print(paste0("+: letter is in the word but not in the correct spot."), quote = FALSE) 
+  print(paste0("-: letter is not in the word."), quote = FALSE)
+  starting_word <- rep("-", length(answer))
+  print(paste(starting_word, collapse = " "))
+  
+  # setting the beginning parameters
+  letters_left <- LETTERS
+  guess_count <- 0
+  guess_history <- data.frame(Guess = rep(NA, guess_count)) # makes a blank data frame full of NAs the length of number of guesses
+  feedback_history <- data.frame(Feedback = rep(NA, guess_count))
+  
+  while (guess_count < num_guesses) {
+
+  # print letters left
+  print(paste(c("Letters left: ", letters_left), collapse = " "))
+  
+  # prompt player for a guess
+  guess_count <- guess_count + 1
+  guess <- toupper(readline(prompt = "Enter your guess, then press <enter>:"))
+  # check if correct word length
+  if (nchar(guess) != length(answer)) {
+    print(paste0("⚠️ Your guess must have ", length(answer), " letters. Try again."))
+    guess_count <- guess_count - 1
+    next
+  }
+  # check if valid word
+  if (!(guess %in% valid_guesses)){
+    print(paste0("⚠️ Your guess is NOT a valid word. Try again."))
+    guess_count <- guess_count - 1
+    next
+  }
+  guess <- str_split_1(guess, pattern = "")
+  
+  # evaluate guess
+  feedback <- evaluate_guess(guess, answer)
+  
+  # update list of letters not yet guessed
+  wrong_letters <- guess[!(guess %in% answer)] # only remove letters that are not in the word at all
+  letters_left <- setdiff(letters_left, wrong_letters)
+  
+  # update history
+  guess_history[guess_count,] <- paste(guess, collapse = " ")
+  feedback_history[guess_count,] <- paste(feedback, collapse = " ")
+  
+  # check if puzzle was solved; if not, prompt player for another guess
+  # print results
+  history <- cbind(guess_history, feedback_history)
+  print(history)
+  # if correct word is guessed
+  if (all(feedback == "*")) {
+    answer <- paste(answer, collapse = "")
+    print(paste0("YOU WON! 🎉 The correct answer was: ", answer), quote = FALSE)
+    print(paste0("Congratulations, you solved the Wordle in ", guess_count, " guesses!"), quote = FALSE)
+    return()
+  }
+  }
+  # if player runs out of guesses
+  answer <- paste(answer, collapse = "")
+  print(paste0("Sorry, you lost! 😭 The correct answer was: ", answer))
+}
+```
+
+# To play a round of Wordle, use the functions below!
+
+solution <- pick_solution(solution_list, word_length = "")  
+game <- play_wordle(solution, valid_list, num_guess = "")
+
+## For example:
+```{r}
+#| eval: false
+solution <- pick_solution(solution_list, word_length = 5)
+game <- play_wordle(solution, valid_list, num_guesses = 6)
+```
+
